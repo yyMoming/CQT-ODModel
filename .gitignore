@@ -1,0 +1,7 @@
+*.txt
+build
+MFSHS/build
+MusicLoader/build
+SpecTransform/build
+utility/build
+
