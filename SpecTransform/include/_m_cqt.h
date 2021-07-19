@@ -39,13 +39,16 @@ namespace CQT{
         vector<float> lengths; // float *lengths;
         int n_frames;
         int hop_length;
+
+        ofstream real;
+        ofstream imag;
     public:
         vector<std::complex<dtype> *> res_frames;
     public:
         _m_cqt(const float &sample_rate, const float &fmin, const int &bins_per_octave, const int &bins, const int& hop_length);
         ~_m_cqt();
         void calc(dtype* y, const int & y_len, const float& sr=44100);
-        void resample_f(dtype *signal, const int &signal_len, dtype *resample_res) const;
+        void resample_f(const dtype *signal, const int &signal_len, dtype *resample_res) const;
         void constant_q(const float &my_sr, const float &fmin_t, const int& n_filters);
         void cqt_filter_fft(float &my_sr, float &fmin_t);
         void cqt_response(const dtype* y, const int& y_len, const int & hop_length);
@@ -63,6 +66,8 @@ namespace CQT{
 
         }
         cout << "_m_cqt has been destroyed!" << endl;
+        real.close();
+        imag.close();
     }
     /*
      * cqt 模板类构造函数
@@ -93,13 +98,19 @@ namespace CQT{
         }
 
         f.close();
-
+        real.open("cqt_real.txt", ios::out);
+        imag.open("cqt_imag.txt", ios::out);
         cout << "template class _m_cqt has initialized" << endl;
     }
 
+    /*
+     * y: 输入的采样信号
+     * y_len: 输入信号的长度
+     * sr: cqt 使用的采样率
+     * */
     template<class dtype>
     void _m_cqt<dtype>::calc(dtype* y, const int & y_len, const float& sr){
-        n_frames = ceil(double(y_len) / hop_length);
+        n_frames = floor(double(y_len) / hop_length);
         vector<dtype> freqs(n_bins);
         for(int i = 0; i < n_bins; i++){
             freqs[i] = fmin * pow(2.0, i / dtype(bins_per_octave));
@@ -108,9 +119,11 @@ namespace CQT{
         float fmin_t = freqs[n_bins - bins_per_octave];
         float fmax_t = freqs[n_bins - 1];
         int n_octave = floor(log2(n_bins));
-        int n_samples = ceil(y_len * sample_ratio);
+        int n_samples = ceil(double(y_len) * sample_ratio);
 
-        dtype *resample_res = new dtype[n_samples];
+        unique_ptr<dtype> resample(new dtype[n_samples]);
+        dtype *resample_res = resample.get();
+
         int my_len = n_samples;
         int my_hop_length = hop_length * sample_ratio;
         float my_sr = sr * sample_ratio;
@@ -120,9 +133,10 @@ namespace CQT{
 //
 //        //进行 行稀疏 处理之后的结果fft_basis
         cqt_filter_fft(my_sr, fmin_t);
+        /*
         fstream ofs("fft_basis.csv", ios::out);
 
-        for(auto vec: filters){
+        for(auto vec: fft_basis){
             for(int i = 0; i < n_fft; i++){
                 auto x = *(vec + i);
                 ofs << x.real();
@@ -133,9 +147,64 @@ namespace CQT{
             }
             ofs << endl;
         }
-        ofs.close();
-//        cqt_response(resample_res, my_len, my_hop_length, res_frames);
+        ofs.close();*/
+
+        resample_f(y, y_len, resample_res);
+        cqt_response(resample_res, my_len, my_hop_length);
+
+        unique_ptr<dtype> copy_samples(new dtype[my_len]);
+        dtype *copy_samples_ptr = copy_samples.get();
+        std::complex<dtype> mul_num(sqrt(2.0), 0);
+        dtype *t;
+        for(int i = 0; i < n_octave - 1; i ++){
+            for(auto x: fft_basis){
+                transform(x, x + n_fft / 2 + 1, x, std::bind(multiplies<complex<dtype>>(), std::placeholders::_1, mul_num));
+            }
+
+            if(i % 2 == 0){
+                memset(copy_samples_ptr, 0, my_len * sizeof(dtype));
+                resample_f(resample_res, my_len, copy_samples_ptr);
+                t = copy_samples_ptr;
+            }
+            else{
+                memset(resample_res, 0, my_len * sizeof(dtype));
+                resample_f(copy_samples_ptr, my_len, resample_res);
+                t = resample_res;
+            }
+
+            my_len = ceil(float(my_len) * sample_ratio);
+            my_sr /= 2.0;
+            my_hop_length = int(my_hop_length / 2);
+            auto tsum = accumulate(t, t + my_len, dtype(0));
+            cqt_response(t, my_len, my_hop_length);
+        }
+
+        /*
+         * 调整顺序
+         * */
+        for(int i = 0; i < n_octave / 2; i++){
+            int high_freq = bins_per_octave * i;
+            int low_freq = bins_per_octave * (n_octave - 1 - i);
+            for(int j = 0; j < bins_per_octave; j++){
+                auto t = res_frames[high_freq + j];
+                res_frames[high_freq + j] = res_frames[low_freq +j];
+                res_frames[low_freq +j] = t;
+            }
+        }
+        for(int i = bins_per_octave * n_octave - n_bins; i > 0; i--)
+            res_frames.pop_back();
+        for(auto x: res_frames){
+            for(int i = 0; i < n_frames; i++){
+
+                real << x->real() << ",";
+                imag << x->imag() << ",";
+                x++;
+            }
+            real << endl;
+            imag << endl;
+        }
     }
+
     /*
      * cqt 采样函数
      * signal: 待采样的信号
@@ -143,7 +212,7 @@ namespace CQT{
      * resample_res: 采样结果保存
      * */
     template<class dtype>
-    void _m_cqt<dtype>::resample_f(dtype *signal, const int &signal_len, dtype *resample_res) const{
+    void _m_cqt<dtype>::resample_f(const dtype *signal, const int &signal_len, dtype *resample_res) const{
         float scale = sample_ratio > 1 ? 1 : sample_ratio;
         float time_increment = 1.0f / sample_ratio;
         int index_step = static_cast<int>(scale * precision);
@@ -260,19 +329,7 @@ namespace CQT{
             }
             this->filters[i] = complexPointer;
         }
-//        ofstream ofs("cqt_fillter.csv", ios::out);
-//        ofs << setprecision(5);
-//        for(auto x: filters){
-//            for(int i = 0; i < max_len; i++){
-//                std::complex<dtype> _tmp = *(x + i);
-//                ofs << _tmp.real() ;
-//                if(_tmp.imag() >= 0) ofs << "+" << _tmp.imag() << "j,";
-//                else ofs << _tmp.imag() << "j,";
-//            }
-//            ofs << endl;
-//        }
-//        ofs.close();
-//        exit(1);
+
     }
 
     /*
@@ -335,48 +392,44 @@ namespace CQT{
      * */
     template<class dtype>
     void _m_cqt<dtype>::cqt_response(const dtype* y, const int &y_len, const int &hop_length){
+        auto sum = accumulate(y, y + y_len, dtype(0));
         vector<std::complex<dtype> *> stft_ret;
         _m_stft(y, y_len, n_fft, hop_length, stft_ret);
-        int n_frames = floor(double(y_len + n_fft) / hop_length);
-//        ofstream ofs("sftf_real.csv", std::ios::out);
-//        ofstream ifs("sftf_imag.csv", std::ios::out);
-//        ofs << setprecision(5);
-//        for(auto x: stft_ret){
-//            for(int i = 0; i < n_fft / 2 + 1; i++){
-//                std::complex<dtype> tmp = *(x + i);
-//                if(i == n_fft / 2){
-//                    ofs << tmp.real();
-//                    ifs << tmp.imag();
-//                    break;
-//                }
-//                ofs << tmp.real() << ",";
-//                ifs << tmp.imag() << ",";
-//
-//            }
-//            ofs << endl;
-//            ifs << endl;
-//        }
-//        ofs.close();
-//        ifs.close();
-//        vector<std::complex<dtype> *> C(bins_per_octave * n_frames);
-        ofstream real("cqt_real.txt", ios::out);
-        ofstream imag("cqt_imag.txt", ios::out);
+        /*
+        ofstream _imag("cqt_stft_imag.csv", ios::out);
+        ofstream _real("cqt_stft_real.csv", ios::out);
+        for(auto x: stft_ret){
+            for(int i = 0; i < n_fft / 2 + 1; i++){
+                auto t = *(x + i);
+                _real << t.real() << ",";
+                _imag << t.imag() << ",";
+            }
+            _real << endl;
+            _imag << endl;
+        }
+        exit(1);*/
+        int n_frames = floor(double(y_len) / hop_length);
+        cout <<"[" << y_len << ":" << hop_length << "]" << n_frames << endl;
         std::complex<dtype> *c = new std::complex<dtype>[n_fft / 2 + 1];
         for(auto x: fft_basis){
             std::complex<dtype> *mul_res = new complex<dtype>[stft_ret.size()];
-
+            auto t = mul_res;
             for(auto frame: stft_ret){
 
                 transform(x, x + n_fft / 2 + 1, frame, c, multiplies<std::complex<dtype>>());
                 auto sum_c = accumulate(c, c + n_fft / 2 + 1, std::complex<dtype>(0, 0));
-                *mul_res = sum_c;
-                real << sum_c.real() << ",";
-                imag << sum_c.imag() << ",";
-                mul_res++;
+                *t = sum_c;
+//                real << sum_c.real() << ",";
+//                imag << sum_c.imag() << ",";
+                t++;
             }
-            mul_res = nullptr;
+//            real << endl;
+//            imag << endl;
+            auto mul_res_sum = accumulate(mul_res, mul_res + n_frames, std::complex<dtype>(0, 0));
             res_frames.push_back(mul_res);
+
         }
+
     }
 };
 #endif //SINGTALENT__M_CQT_H

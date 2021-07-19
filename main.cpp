@@ -76,6 +76,7 @@ int main(){
     double *y;
     y = readlines("./output.txt", y);
     mc.calc(y, length, 44100);
+
 //    CQT::_m_stft(y, length, 512, 512);
 //    double *res = new double[length / 2];
 //
