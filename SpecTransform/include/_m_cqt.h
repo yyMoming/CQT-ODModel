@@ -48,6 +48,9 @@ namespace CQT{
         _m_cqt(const float &sample_rate, const float &fmin, const int &bins_per_octave, const int &bins, const int& hop_length);
         ~_m_cqt();
         void calc(dtype* y, const int & y_len, const float& sr=44100);
+        vector<std::complex<dtype> *> cqt_res() const;
+        int get_n_frames() const;
+    private:
         void resample_f(const dtype *signal, const int &signal_len, dtype *resample_res) const;
         void constant_q(const float &my_sr, const float &fmin_t, const int& n_filters);
         void cqt_filter_fft(float &my_sr, float &fmin_t);
@@ -65,9 +68,13 @@ namespace CQT{
                 delete[] x;
 
         }
-        cout << "_m_cqt has been destroyed!" << endl;
+        for(auto x: res_frames){
+            if(x)
+                delete[] x;
+        }
         real.close();
         imag.close();
+        cout << "_m_cqt has been destroyed!" << endl;
     }
     /*
      * cqt 模板类构造函数
@@ -81,6 +88,7 @@ namespace CQT{
                           const int &bins, const int &hop_length):sr(sample_rate), fmin(fmin), bins_per_octave(bins_per_octave),
                           n_bins(bins), hop_length(hop_length){
         fstream f("../files/interp_win_param.txt");
+        Q = double(1.0) / (pow(2.0, 1.0 / bins_per_octave) - 1);
         inter_win.resize(inter_win_len);
         inter_delta.resize(inter_win_len - 1);
         if(f.is_open()){
@@ -102,7 +110,15 @@ namespace CQT{
         imag.open("cqt_imag.txt", ios::out);
         cout << "template class _m_cqt has initialized" << endl;
     }
+    template<class dtype>
+    inline vector<std::complex<dtype> *> _m_cqt<dtype>::cqt_res() const{
+        return res_frames;
+    }
 
+    template<class dtype>
+    inline int _m_cqt<dtype>::get_n_frames() const {
+        return n_frames;
+    }
     /*
      * y: 输入的采样信号
      * y_len: 输入信号的长度
@@ -175,7 +191,7 @@ namespace CQT{
             my_len = ceil(float(my_len) * sample_ratio);
             my_sr /= 2.0;
             my_hop_length = int(my_hop_length / 2);
-            auto tsum = accumulate(t, t + my_len, dtype(0));
+//            auto tsum = accumulate(t, t + my_len, dtype(0));
             cqt_response(t, my_len, my_hop_length);
         }
 
@@ -191,18 +207,19 @@ namespace CQT{
                 res_frames[low_freq +j] = t;
             }
         }
-        for(int i = bins_per_octave * n_octave - n_bins; i > 0; i--)
-            res_frames.pop_back();
-        for(auto x: res_frames){
-            for(int i = 0; i < n_frames; i++){
-
-                real << x->real() << ",";
-                imag << x->imag() << ",";
-                x++;
-            }
-            real << endl;
-            imag << endl;
-        }
+        res_frames.assign(res_frames.begin() + bins_per_octave * n_octave - n_bins, res_frames.end());
+//        for(int i = bins_per_octave * n_octave - n_bins; i > 0; i--)
+//            res_frames.pop_front();
+//        for(auto x: res_frames){
+//            for(int i = 0; i < n_frames; i++){
+//
+//                real << x->real() << ",";
+//                imag << x->imag() << ",";
+//                x++;
+//            }
+//            real << endl;
+//            imag << endl;
+//        }
     }
 
     /*
@@ -309,7 +326,7 @@ namespace CQT{
             }
 //            auto tmp = complexPointer;
             transform(exps_ptr, exps_ptr + win_size, window_ptr, complexPointer, multiplies<complex<dtype>>());
-            vector<double> mags(win_size);
+            vector<dtype> mags(win_size);
             for(int j = 0; j < win_size; j++){
                 mags[j] = abs(complexPointer[j]);
             }
@@ -318,7 +335,7 @@ namespace CQT{
                 complexPointer[j] /= mags_sum;
             }
             uint pad_left = floor((max_len - win_size) / 2);
-            memmove(complexPointer + pad_left, complexPointer, win_size * sizeof(std::complex<double>));
+            memmove(complexPointer + pad_left, complexPointer, win_size * sizeof(std::complex<dtype>));
 //            copy_backward(complexPointer, complexPointer + win_size, complexPointer + pad_left);
             fill_n(complexPointer, pad_left, std::complex<dtype>());
             const float nFloat = lengths[i];
@@ -392,7 +409,7 @@ namespace CQT{
      * */
     template<class dtype>
     void _m_cqt<dtype>::cqt_response(const dtype* y, const int &y_len, const int &hop_length){
-        auto sum = accumulate(y, y + y_len, dtype(0));
+//        auto sum = accumulate(y, y + y_len, dtype(0));
         vector<std::complex<dtype> *> stft_ret;
         _m_stft(y, y_len, n_fft, hop_length, stft_ret);
         /*
