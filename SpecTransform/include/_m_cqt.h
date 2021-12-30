@@ -150,22 +150,25 @@ namespace CQT{
 //        //进行 行稀疏 处理之后的结果fft_basis
         cqt_filter_fft(my_sr, fmin_t);
         /*
-        fstream ofs("fft_basis.csv", ios::out);
-
+        fstream fft_basis_imag("fft_basis_imag.csv", ios::out);
+        fstream fft_basis_real("fft_basis_real.csv", ios::out);
         for(auto vec: fft_basis){
-            for(int i = 0; i < n_fft; i++){
+            for(int i = 0; i < n_fft / 2 + 1; i++){
                 auto x = *(vec + i);
-                ofs << x.real();
-                if(x.imag() >= 0){
-                    ofs << "+" << x.imag() << ",";
-                }
-                else ofs << x.imag() << ",";
+                if(i == n_fft / 2 - 1){
+                    fft_basis_imag << x.imag() << endl;
+                    fft_basis_real << x.real() << endl;
+                }else{
+                    fft_basis_imag << x.imag() << ",";
+                    fft_basis_real << x.real() << ",";
+                }    
             }
-            ofs << endl;
         }
-        ofs.close();*/
-
+        fft_basis_real.close();
+        fft_basis_imag.close();
+        */
         resample_f(y, y_len, resample_res);
+
         cqt_response(resample_res, my_len, my_hop_length);
 
         unique_ptr<dtype> copy_samples(new dtype[my_len]);
@@ -208,18 +211,6 @@ namespace CQT{
             }
         }
         res_frames.assign(res_frames.begin() + bins_per_octave * n_octave - n_bins, res_frames.end());
-//        for(int i = bins_per_octave * n_octave - n_bins; i > 0; i--)
-//            res_frames.pop_front();
-//        for(auto x: res_frames){
-//            for(int i = 0; i < n_frames; i++){
-//
-//                real << x->real() << ",";
-//                imag << x->imag() << ",";
-//                x++;
-//            }
-//            real << endl;
-//            imag << endl;
-//        }
     }
 
     /*

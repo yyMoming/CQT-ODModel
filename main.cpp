@@ -76,32 +76,42 @@ int main(){
     double *y;
     y = readlines("./output.txt", y);
     mc.calc(y, length, 44100);
-
-//    CQT::_m_stft(y, length, 512, 512);
-//    double *res = new double[length / 2];
-//
-//    mc.resample_f(y, length, res);
-//    auto sums = accumulate(res, res + length / 2, 0.0);
-//    cout << sums << endl;
-//    float sr=22050, fmin=2349.32;
-//    time_t start = clock();
-//    mc.constant_q(sr, fmin, 36);
-//
-//    mc.cqt_filter_fft(sr, fmin);
-//    time_t _end = clock();
-//    cout << "constant_q 耗时：" << double(_end - start) / CLOCKS_PER_SEC << endl;
-//
-//    start = clock();
-//    int new_length = length / 2;
-//    int hop_length = 256;
-//    mc.cqt_response(res, new_length, hop_length);
-//    _end = clock();
-//    cout << "cqt_response 耗时：" << double(_end - start) / CLOCKS_PER_SEC << endl;
     auto res_frames = mc.res_frames;
-
-    for(auto x: res_frames){
-        if(x)
-            delete[] x;
+    int n_frames = mc.get_n_frames();
+    fstream res_frames_imag("cqt_out_imag.txt", ios::out);
+    fstream res_frames_real("cqt_out_real.txt", ios::out);
+    for (auto x: res_frames){
+        for (int i = 0; i < n_frames; i++, x++){
+            if (i != n_frames - 1){
+                res_frames_imag << x->imag() << ",";
+                res_frames_real << x->real() << ",";
+            }else{
+                res_frames_imag << x->imag() << endl;
+                res_frames_real << x->real() << endl;
+            }
+        }
     }
+    res_frames_imag.close();
+    res_frames_real.close();
+    //    CQT::_m_stft(y, length, 512, 512);
+    //    double *res = new double[length / 2];
+    //
+    //    mc.resample_f(y, length, res);
+    //    auto sums = accumulate(res, res + length / 2, 0.0);
+    //    cout << sums << endl;
+    //    float sr=22050, fmin=2349.32;
+    //    time_t start = clock();
+    //    mc.constant_q(sr, fmin, 36);
+    //
+    //    mc.cqt_filter_fft(sr, fmin);
+    //    time_t _end = clock();
+    //    cout << "constant_q 耗时：" << double(_end - start) / CLOCKS_PER_SEC << endl;
+    //
+    //    start = clock();
+    //    int new_length = length / 2;
+    //    int hop_length = 256;
+    //    mc.cqt_response(res, new_length, hop_length);
+    //    _end = clock();
+    //    cout << "cqt_response 耗时：" << double(_end - start) / CLOCKS_PER_SEC << endl;
     delete[] y;
 }

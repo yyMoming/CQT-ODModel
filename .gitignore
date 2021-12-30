@@ -1,7 +1,8 @@
-*.txt
+*.mp3
 build
 MFSHS/build
 MusicLoader/build
 SpecTransform/build
 utility/build
+.vscode
 

@@ -51,7 +51,7 @@ namespace CQT{
         copy(y + y_len - n_fft / 2, y + y_len, pad);
         reverse(pad, pad + n_fft / 2);
         copy(pad, pad + n_fft / 2, y_padded + y_len + n_fft / 2);
-        delete[]  pad;
+        
         copy(y, y + y_len, y_padded + n_fft / 2);
         int n_frames = floor(double(y_len) / hop_length);
 
@@ -76,6 +76,7 @@ namespace CQT{
         fftw_free(in);
         fftw_free(out);
         delete[] y_padded;
+        delete[] pad;
     }
 
     /*
