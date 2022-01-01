@@ -37,6 +37,8 @@ void mp3_loader(char *filename, char *outfilename);
 
 void mp3_loader(char *filename, vector<float> &pcm_ptr);
 
+void mp3_loader(char *filename, vector<double> &pcm_ptr);
+
 void pcm_loader(std::fstream &fs, std::vector<float> &res);
 
 #endif //SIGHTSING_MUSIC_LOADER_H

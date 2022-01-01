@@ -29,8 +29,8 @@ namespace CQT{
         int n_bins; //总共的频点数
         double Q = 51.43862596945148;    //
         int n_fft;  //每次生成滤波器组要进行fft变换的长度
-        vector<std::complex<dtype> *> fft_basis;
-        vector<std::complex<dtype> *> filters;
+        vector<std::shared_ptr<std::complex<dtype>>> fft_basis;
+        vector<std::shared_ptr<std::complex<dtype>>> filters;
         vector<float> inter_win;    // 采样点采样滤波器
         vector<float> inter_delta;
         int inter_win_len = 8193;
@@ -43,12 +43,12 @@ namespace CQT{
         ofstream real;
         ofstream imag;
     public:
-        vector<std::complex<dtype> *> res_frames;
+        vector<std::shared_ptr<std::complex<dtype> >> res_frames;
     public:
         _m_cqt(const float &sample_rate, const float &fmin, const int &bins_per_octave, const int &bins, const int& hop_length);
         ~_m_cqt();
         void calc(dtype* y, const int & y_len, const float& sr=44100);
-        vector<std::complex<dtype> *> cqt_res() const;
+        vector<std::shared_ptr<std::complex<dtype> >> cqt_res() const;
         int get_n_frames() const;
     private:
         void resample_f(const dtype *signal, const int &signal_len, dtype *resample_res) const;
@@ -58,20 +58,20 @@ namespace CQT{
     };
     template<class dtype>
     _m_cqt<dtype>::~_m_cqt() {
-        for(auto x: filters){
-            if(x)
-                delete[] x;
+        // for(auto x: filters){
+        //     if(x)
+        //         delete[] x;
 
-        }
-        for(auto x: fft_basis){
-            if(x)
-                delete[] x;
+        // }
+        // for(auto x: fft_basis){
+        //     if(x)
+        //         delete[] x;
 
-        }
-        for(auto x: res_frames){
-            if(x)
-                delete[] x;
-        }
+        // }
+        // for(auto x: res_frames){
+        //     if(x)
+        //         delete[] x;
+        // }
         real.close();
         imag.close();
         cout << "_m_cqt has been destroyed!" << endl;
@@ -111,7 +111,7 @@ namespace CQT{
         cout << "template class _m_cqt has initialized" << endl;
     }
     template<class dtype>
-    inline vector<std::complex<dtype> *> _m_cqt<dtype>::cqt_res() const{
+    inline vector<std::shared_ptr<std::complex<dtype> >> _m_cqt<dtype>::cqt_res() const{
         return res_frames;
     }
 
@@ -126,12 +126,23 @@ namespace CQT{
      * */
     template<class dtype>
     void _m_cqt<dtype>::calc(dtype* y, const int & y_len, const float& sr){
-        n_frames = floor(double(y_len) / hop_length);
+        /*
+            删除fft_basis, filters 和 res_frames
+        */
+       {
+           vector<std::shared_ptr<std::complex<dtype>>> v3, v1, v2;
+           fft_basis.swap(v1);
+           filters.swap(v2);
+           res_frames.swap(v3);
+       }
+        // 总帧数
+        this->n_frames = floor(double(y_len) / hop_length);
         vector<dtype> freqs(n_bins);
         for(int i = 0; i < n_bins; i++){
             freqs[i] = fmin * pow(2.0, i / dtype(bins_per_octave));
         }
-        n_filters = n_bins > bins_per_octave ? bins_per_octave : n_bins;
+        // 滤波器个数
+        this->n_filters = n_bins > bins_per_octave ? bins_per_octave : n_bins;
         float fmin_t = freqs[n_bins - bins_per_octave];
         float fmax_t = freqs[n_bins - 1];
         int n_octave = floor(log2(n_bins));
@@ -149,24 +160,7 @@ namespace CQT{
 //
 //        //进行 行稀疏 处理之后的结果fft_basis
         cqt_filter_fft(my_sr, fmin_t);
-        /*
-        fstream fft_basis_imag("fft_basis_imag.csv", ios::out);
-        fstream fft_basis_real("fft_basis_real.csv", ios::out);
-        for(auto vec: fft_basis){
-            for(int i = 0; i < n_fft / 2 + 1; i++){
-                auto x = *(vec + i);
-                if(i == n_fft / 2 - 1){
-                    fft_basis_imag << x.imag() << endl;
-                    fft_basis_real << x.real() << endl;
-                }else{
-                    fft_basis_imag << x.imag() << ",";
-                    fft_basis_real << x.real() << ",";
-                }    
-            }
-        }
-        fft_basis_real.close();
-        fft_basis_imag.close();
-        */
+        
         resample_f(y, y_len, resample_res);
 
         cqt_response(resample_res, my_len, my_hop_length);
@@ -177,7 +171,7 @@ namespace CQT{
         dtype *t;
         for(int i = 0; i < n_octave - 1; i ++){
             for(auto x: fft_basis){
-                transform(x, x + n_fft / 2 + 1, x, std::bind(multiplies<complex<dtype>>(), std::placeholders::_1, mul_num));
+                transform(x.get(), x.get() + n_fft / 2 + 1, x.get(), std::bind(multiplies<complex<dtype>>(), std::placeholders::_1, mul_num));
             }
 
             if(i % 2 == 0){
@@ -335,7 +329,9 @@ namespace CQT{
             for(int j = 0; j < max_len; j++){
                 complexPointer[j] = complexPointer[j] * n_max_len;
             }
-            this->filters[i] = complexPointer;
+            this->filters[i] = std::shared_ptr<std::complex<dtype>>(complexPointer);
+            // this->filters[i] = std::shared_ptr<std::complex<dtype>>(complexPointer, [](std::complex<dtype> *ptr)
+            //                                                         { delete[] ptr; });
         }
 
     }
@@ -356,7 +352,7 @@ namespace CQT{
         int count = 0;
         for(auto x: filters){
 
-            fftw_complex *tmp = reinterpret_cast<fftw_complex *>(x);
+            fftw_complex *tmp = reinterpret_cast<fftw_complex *>(x.get());
             memcpy(in, tmp, n_fft * sizeof(fftw_complex));
             p = fftw_plan_dft_1d(n_fft, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
             fftw_execute(p);
@@ -386,9 +382,11 @@ namespace CQT{
                     sparse_vec[k] = fft_res_ptr[k];
                 }
             }
-            fft_basis.push_back(sparse_vec);
+            fft_basis.push_back(std::shared_ptr<std::complex<dtype>>(sparse_vec));
+            // fft_basis.push_back(std::shared_ptr<std::complex<dtype>>(sparse_vec, [](std::complex<dtype> *ptr)
+            //                                                          { delete[] ptr; }));
+            fftw_destroy_plan(p);
         }
-        fftw_destroy_plan(p);
         fftw_free(in);
         fftw_free(out);
     }
@@ -401,7 +399,8 @@ namespace CQT{
     template<class dtype>
     void _m_cqt<dtype>::cqt_response(const dtype* y, const int &y_len, const int &hop_length){
 //        auto sum = accumulate(y, y + y_len, dtype(0));
-        vector<std::complex<dtype> *> stft_ret;
+        // vector<std::complex<dtype> *> stft_ret;
+        vector<std::shared_ptr<std::complex<dtype>>> stft_ret;
         _m_stft(y, y_len, n_fft, hop_length, stft_ret);
         /*
         ofstream _imag("cqt_stft_imag.csv", ios::out);
@@ -424,7 +423,7 @@ namespace CQT{
             auto t = mul_res;
             for(auto frame: stft_ret){
 
-                transform(x, x + n_fft / 2 + 1, frame, c, multiplies<std::complex<dtype>>());
+                transform(x.get(), x.get() + n_fft / 2 + 1, frame.get(), c, multiplies<std::complex<dtype>>());
                 auto sum_c = accumulate(c, c + n_fft / 2 + 1, std::complex<dtype>(0, 0));
                 *t = sum_c;
 //                real << sum_c.real() << ",";
@@ -434,10 +433,12 @@ namespace CQT{
 //            real << endl;
 //            imag << endl;
             auto mul_res_sum = accumulate(mul_res, mul_res + n_frames, std::complex<dtype>(0, 0));
-            res_frames.push_back(mul_res);
-
+            // res_frames.push_back(std::shared_ptr<std::complex<dtype>>(mul_res, [](std::complex<dtype> *ptr)
+            //                                                           { delete[] ptr; }));
+            res_frames.push_back(std::shared_ptr<std::complex<dtype>>(mul_res));
         }
-
+        // 释放堆内存
+        delete[] c;
     }
 };
 #endif //SINGTALENT__M_CQT_H

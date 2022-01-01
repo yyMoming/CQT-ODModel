@@ -10,6 +10,7 @@
 #include <fstream>
 #include <functional>
 #include <algorithm>
+#include <memory>
 namespace CQT{
 
     template<class dtype>
@@ -41,7 +42,7 @@ namespace CQT{
     }
 
     template<class dtype>
-    void _m_stft(const dtype* y, const int& y_len, const int & n_fft, const int & hop_length, std::vector<std::complex<dtype> *> &stft_ret){
+    void _m_stft(const dtype* y, const int& y_len, const int & n_fft, const int & hop_length, std::vector<std::shared_ptr<std::complex<dtype>>> &stft_ret){
         dtype *y_padded = new dtype[y_len + n_fft];
         dtype *pad = new dtype[n_fft / 2];(y + 1, y + 1 + n_fft / 2);
         copy(y + 1, y + 1 + n_fft / 2, pad);
@@ -70,9 +71,10 @@ namespace CQT{
             p = fftw_plan_dft_1d(n_fft, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
             fftw_execute(p);
             memcpy(res, out, (n_fft / 2 + 1) * sizeof(std::complex<dtype>));
-            stft_ret.push_back(res);
+            stft_ret.push_back(std::shared_ptr<std::complex<dtype>>(res));
+            fftw_destroy_plan(p);
         }
-        fftw_destroy_plan(p);
+        
         fftw_free(in);
         fftw_free(out);
         delete[] y_padded;
@@ -120,10 +122,11 @@ namespace CQT{
             }
 //            fimag << std::endl;
 //            freal << std::endl;
+            fftw_destroy_plan(p);
         }
         fimag.close();
         freal.close();
-        fftw_destroy_plan(p);
+        
         fftw_free(in);
         fftw_free(out);
         delete[] y_padded;
