@@ -15,7 +15,9 @@ ELSE()
 ENDIF()
 
 set(Torch_DIR /home/data/ywm_data/libtorch/share/cmake/Torch)
+# set(OpenCV_DIR /usr/local/share/OpenCV)
 find_package(Torch REQUIRED)
+# find_package(OpenCV REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "-O3 -fopenmp -pthread -fpermissive")
 add_subdirectory(MusicLoader)
@@ -29,7 +31,13 @@ link_directories(SpecTransform )
 add_executable(${PROJECT_NAME} main.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC SpecTransform MusicLoader MFSHS utility)
 target_include_directories(${PROJECT_NAME} PUBLIC Model/include)
+target_include_directories(${PROJECT_NAME} PUBLIC /usr/local/include/opencv2)
 target_link_libraries(${PROJECT_NAME} PUBLIC "${TORCH_LIBRARIES}")
+# target_link_libraries(${PROJECT_NAME} PUBLIC "${OPENCV_LIBRARIES}")
+target_link_directories(${PROJECT_NAME} PUBLIC /usr/local/lib64)
+# target_link_libraries(${PROJECT_NAME} PUBLIC opencv_highgui)
 target_link_libraries(${PROJECT_NAME} PUBLIC Model)
+
 target_link_libraries(${PROJECT_NAME} PUBLIC MusicLoader MFSHS utility libfftw3.a)
+
 

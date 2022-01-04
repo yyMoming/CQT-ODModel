@@ -15,7 +15,6 @@
 #include <fftw3.h>
 #include <numeric>
 #include <iomanip>
-
 #include "_m_stft.h"
 using namespace std;
 namespace CQT{
@@ -43,7 +42,7 @@ namespace CQT{
         ofstream real;
         ofstream imag;
     public:
-        vector<std::shared_ptr<std::complex<dtype> >> res_frames;
+        vector<std::shared_ptr<std::complex<dtype>>> res_frames;
     public:
         _m_cqt(const float &sample_rate, const float &fmin, const int &bins_per_octave, const int &bins, const int& hop_length);
         ~_m_cqt();
@@ -359,7 +358,7 @@ namespace CQT{
             fft_res_ptr = reinterpret_cast<std::complex<dtype> *>(out);
 
             std::complex<dtype> *sparse_vec = new std::complex<dtype>[n_fft / 2 + 1];
-            auto f = std::bind(std::abs<dtype>, std::complex<dtype>(1.0, 3.0));
+            // auto f = std::bind(std::abs<dtype>, std::complex<dtype>(1.0, 3.0));
             transform(fft_res_ptr, fft_res_ptr + n_fft / 2 + 1, mags.begin(), std::bind(std::abs<dtype>, std::placeholders::_1));
             dtype norm = accumulate(mags.begin(), mags.end(), 0.0);
 
