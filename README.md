@@ -22,5 +22,5 @@ make
 
 ### Note:
 
-##### In the file "`main.cpp`", the ead file "`_m_cqt.h`" "`Model.h`" should be included in order.
+##### In the file "`main.cpp`", the head file "`_m_cqt.h`" "`Model.h`" should be included in order.
 
