@@ -7,7 +7,7 @@ CPP实现的CQT（与Python librosa结果相近）和一个唱歌onset detection
 - [ ] gcc
 - [ ] LibTorch
 - [ ] fftw3
-- [ ] ffpmeg
+- [ ] ffmpeg
 
 ### Installation
 
